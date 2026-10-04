@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Task Manager on Kubernetes — Documentation</title>
+<style>
+  :root {
+    --bg:#0b0f17; --panel:#121825; --panel2:#18212f; --line:#243043;
+    --text:#e7edf7; --muted:#9bb0c9; --accent:#5cc8ff; --accent2:#7c8cff;
+    --green:#56d79b; --yellow:#f3c969; --red:#ff7a7a; --code:#0a0e16;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI",Inter,system-ui,-apple-system,Arial,sans-serif; line-height:1.65;
+  }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  code { font-family:"Cascadia Code","Fira Code",Consolas,monospace; font-size:.92em; }
+
+  .layout { display:grid; grid-template-columns:270px 1fr; min-height:100vh; }
+  aside {
+    position:sticky; top:0; height:100vh; overflow:auto; padding:26px 20px;
+    border-right:1px solid var(--line); background:#0c121d;
+  }
+  .brand { font-weight:800; font-size:18px; letter-spacing:.2px; }
+  .brand span { color:var(--accent); }
+  .brand-sub { font-size:12px; color:var(--muted); margin:6px 0 20px; }
+  nav a {
+    display:block; color:var(--muted); padding:8px 12px; border-radius:8px;
+    font-size:14px; margin:2px 0; border-left:2px solid transparent;
+  }
+  nav a:hover { background:var(--panel2); color:var(--text); text-decoration:none; }
+  nav a.active { background:var(--panel2); color:var(--text); border-left-color:var(--accent); }
+  .nav-group { font-size:11px; text-transform:uppercase; letter-spacing:.14em; color:#5f7190; margin:16px 8px 6px; }
+
+  main { max-width:1000px; width:100%; margin:0 auto; padding:46px 52px 90px; }
+  .hero {
+    padding:34px; border:1px solid var(--line); border-radius:18px; margin-bottom:34px;
+    background:radial-gradient(900px 300px at 10% -20%, rgba(92,200,255,.14), transparent),
+               linear-gradient(135deg,#131c2e,#0f1626);
+  }
+  .tags { margin:0 0 14px; }
+  .tag {
+    display:inline-block; padding:4px 10px; margin:3px 4px 3px 0; border-radius:999px;
+    border:1px solid var(--line); color:var(--accent); font-size:12px; background:#0e1726;
+  }
+  h1 { font-size:34px; margin:6px 0 10px; line-height:1.15; }
+  h2 { font-size:24px; margin:40px 0 14px; padding-top:10px; }
+  h3 { font-size:17px; margin:22px 0 8px; color:#cfe0f5; }
+  p, li { color:#cdd9ea; }
+  .lead { color:var(--muted); font-size:16px; }
+
+  section { scroll-margin-top:24px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px 24px; margin:18px 0; }
+  .callout { padding:14px 16px; border-left:3px solid var(--accent); background:#0f1a2a; border-radius:8px; margin:16px 0; }
+  .callout.warn { border-left-color:var(--yellow); background:#1c1a0f; }
+  .callout.good { border-left-color:var(--green); background:#0e1f18; }
+  .callout.bad  { border-left-color:var(--red); background:#1f1113; }
+  .callout b { color:var(--text); }
+
+  pre {
+    position:relative; background:var(--code); border:1px solid #1b2535; border-radius:10px;
+    padding:16px 16px; overflow:auto; font-size:13px; color:#dbe7fa; margin:14px 0;
+  }
+  pre .cmt { color:#6f84a3; }
+  .copy {
+    position:absolute; top:8px; right:8px; border:1px solid #2b3a52;
+    background:#16213444; color:#aebfd6; border-radius:6px; padding:4px 9px; cursor:pointer; font-size:11px;
+  }
+  .copy:hover { background:#1d2a40; }
+
+  table { width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:#a9bed8; font-weight:600; background:#0f1826; }
+  td code { color:#9fe0b8; }
+
+  .diagram {
+    font-family:"Cascadia Code",Consolas,monospace; white-space:pre; overflow:auto;
+    background:var(--code); border:1px solid #1b2535; border-radius:12px; padding:20px; color:#bcd3f2; font-size:13px;
+  }
+  .steps { counter-reset:s; list-style:none; padding:0; }
+  .steps li { counter-increment:s; display:grid; grid-template-columns:30px 1fr; gap:12px; margin:12px 0; }
+  .steps li::before {
+    content:counter(s); width:26px; height:26px; border-radius:50%; background:#1b2b44;
+    color:#cfe6ff; display:grid; place-items:center; font-weight:700; font-size:13px;
+  }
+  .pill { display:inline-block; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:600; }
+  .pill.ok { background:#133527; color:var(--green); }
+  .pill.no { background:#331518; color:var(--red); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  footer { color:var(--muted); font-size:13px; border-top:1px solid var(--line); margin-top:50px; padding-top:22px; }
+  @media (max-width:860px) {
+    .layout { grid-template-columns:1fr; }
+    aside { position:relative; height:auto; }
+    main { padding:28px 20px 70px; }
+    .grid2 { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="brand">K8s <span>Task Manager</span></div>
+    <div class="brand-sub">Kerberos-authenticated Postgres · documentation</div>
+    <nav id="nav">
+      <div class="nav-group">Getting started</div>
+      <a href="#overview">Overview</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#components">Components</a>
+      <div class="nav-group">How it works</div>
+      <a href="#kerberos">Kerberos / GSSAPI auth</a>
+      <a href="#dataflow">Request data flow</a>
+      <a href="#layout">Repository layout</a>
+      <div class="nav-group">Operate</div>
+      <a href="#run">Run it</a>
+      <a href="#verify">Verify</a>
+      <a href="#troubleshoot">Troubleshooting</a>
+      <a href="#security">Security</a>
+    </nav>
+  </aside>
+
+  <main>
+    <section id="overview" class="hero">
+      <div class="tags">
+        <span class="tag">React</span><span class="tag">Node / Express</span>
+        <span class="tag">PostgreSQL</span><span class="tag">MIT Kerberos</span>
+        <span class="tag">Docker</span><span class="tag">Kubernetes (kind)</span><span class="tag">nginx</span>
+      </div>
+      <h1>Task Manager on Kubernetes</h1>
+      <p class="lead">A small full-stack task app running in a single <a href="https://kind.sigs.k8s.io/" target="_blank" rel="noreferrer">kind</a>
+      cluster. Its headline feature: the backend authenticates to a <b>separate</b> PostgreSQL database
+      using a <b>Kerberos ticket (GSSAPI)</b> — no database password anywhere.</p>
+      <p style="margin-bottom:0"><b>Repository:</b> <a href="https://github.com/ankmay0/k8s" target="_blank" rel="noreferrer">github.com/ankmay0/k8s</a></p>
+    </section>
+
+    <section id="overview-body">
+      <h2>What this is</h2>
+      <p>Four containers run in one Kubernetes cluster. The frontend serves a React UI; the backend
+      exposes a task API; PostgreSQL stores the tasks; and an MIT Kerberos KDC issues the tickets that
+      let the backend prove its identity to the database. The database and the KDC are kept as
+      <b>separate infrastructure</b>, outside the application project.</p>
+      <div class="callout good"><b>Live demo:</b> once deployed, open <a href="http://localhost:30080" target="_blank" rel="noreferrer">http://localhost:30080</a>.</div>
+    </section>
+
+    <section id="architecture">
+      <h2>Architecture</h2>
+      <div class="diagram">Browser
+   │  http://localhost:30080  (kind NodePort 30080 → host)
+   ▼
+┌──────────────┐     /api/*      ┌──────────────┐
+│  frontend    │ ───────────────▶│   backend    │
+│  nginx + SPA │   reverse proxy │  Node/Express│
+└──────────────┘                 └──────┬───────┘
+                                        │ 1. kinit → ticket (backend@TASKAPP.LOCAL)
+                                        │ 2. connect with GSSAPI, NO password
+                                        ▼
+                                 ┌──────────────┐
+                                 │   postgres   │  principal: postgres/postgres@TASKAPP.LOCAL
+                                 │  tasks table │  pg_hba.conf requires "gss" for all TCP
+                                 └──────────────┘
+          ▲
+          │ init-containers call kadmin at startup to create
+          │ each principal and extract its keytab (nothing committed)
+   ┌──────────────┐
+   │  kerberos    │  MIT KDC + kadmind (realm TASKAPP.LOCAL)
+   └──────────────┘</div>
+      <div class="callout"><b>Why one cluster?</b> Kubernetes service DNS and the Kerberos/GSSAPI
+      handshake only work <i>within</i> a cluster. Splitting the pieces across multiple clusters breaks
+      both service discovery and authentication — so all four pods share the <code>taskapp</code> cluster.</div>
+    </section>
+
+    <section id="components">
+      <h2>Components</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Role</th><th>Image</th><th>Service</th></tr></thead>
+        <tbody>
+          <tr><td><b>frontend</b></td><td>React (Vite) SPA served by nginx; proxies <code>/api</code> to the backend</td><td><code>task-frontend</code></td><td>NodePort <code>30080</code></td></tr>
+          <tr><td><b>backend</b></td><td>Express task API; stores tasks in Postgres over GSSAPI</td><td><code>task-backend</code></td><td>ClusterIP <code>5000</code></td></tr>
+          <tr><td><b>postgres</b></td><td>PostgreSQL 16; <code>tasks</code> table; Kerberos-only TCP auth</td><td><code>postgres:16</code></td><td>ClusterIP <code>5432</code></td></tr>
+          <tr><td><b>kerberos</b></td><td>MIT KDC + kadmind, realm <code>TASKAPP.LOCAL</code></td><td><code>task-kerberos</code></td><td>ClusterIP <code>88/749</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="kerberos">
+      <h2>Kerberos / GSSAPI authentication</h2>
+      <p>This is the core of the project: the backend never sends a password to Postgres. Instead it
+      presents a Kerberos ticket, and Postgres validates it against its own service keytab.</p>
+      <ol class="steps">
+        <li>On startup, each pod's <b>init-container</b> contacts the KDC with <code>kadmin</code>
+            (admin credentials) to create its principal and extract a <b>keytab</b> into an in-pod volume.
+            The backend gets <code>backend@TASKAPP.LOCAL</code>; Postgres gets <code>postgres/postgres@TASKAPP.LOCAL</code>.</li>
+        <li>The backend container runs <code>kinit -k -t /krb/backend.keytab</code> to obtain a
+            Ticket-Granting Ticket, cached at <code>/tmp/krb5cc_0</code>.</li>
+        <li>The backend connects using the <b>libpq native driver</b> (<code>pg-native</code>). libpq
+            requests a service ticket for <code>postgres/…</code> from the KDC and performs the GSSAPI handshake.</li>
+        <li>Postgres' <code>pg_hba.conf</code> has method <code>gss</code> for all TCP connections, so it
+            <b>rejects</b> any non-Kerberos login. <code>include_realm=0</code> maps the principal
+            <code>backend@TASKAPP.LOCAL</code> to the database role <code>backend</code>.</li>
+      </ol>
+      <div class="callout warn"><b>kind gotcha solved here:</b> libpq builds the service principal from the
+      FQDN <code>postgres.default.svc.cluster.local</code>. <code>krb5.conf</code> maps
+      <code>*.svc.cluster.local → TASKAPP.LOCAL</code> and the FQDN service principal is provisioned too,
+      so the realm resolves correctly instead of inventing a bogus cross-realm.</div>
+      <h3>Why a native driver?</h3>
+      <p>Pure-JS <code>node-postgres</code> supports only passwords/SCRAM — it cannot do GSSAPI. The
+      backend therefore uses <code>pg-native</code> (libpq), which requires
+      <code>libpq-dev</code>, <code>libkrb5-dev</code>, <code>build-essential</code> and
+      <code>python3</code> in the backend image to compile.</p>
+    </section>
+
+    <section id="dataflow">
+      <h2>Request data flow (add a task)</h2>
+      <div class="diagram">POST /api/tasks  {"title":"..."}
+  nginx (frontend)  ──proxy──▶  backend-service:5000
+  backend  ──SQL via libpq (GSSAPI session)──▶  postgres:5432
+  INSERT INTO tasks (title) VALUES ($1) RETURNING id, title, completed
+  ◀── row ── backend ── JSON ── browser</div>
+      <p>Task IDs are database-generated (<code>BIGINT GENERATED ALWAYS AS IDENTITY</code>) and persist in
+      a <code>PersistentVolumeClaim</code>, so data survives pod restarts.</p>
+    </section>
+
+    <section id="layout">
+      <h2>Repository layout</h2>
+      <div class="diagram">k8s/
+├── k8s-task-app/          the application
+│   ├── frontend/          React + Vite, nginx
+│   ├── backend/           Node/Express (+ .env.example)
+│   └── k8s/               frontend + backend manifests, kind-cluster.yaml
+├── kerberos/              separate infra: KDC build files
+│   └── k8s/               kerberos Deployment + Service
+├── postgres/              separate infra: init.sql, pg_hba.conf
+│   └── k8s/               postgres Deployment + Service + PVC
+├── deploy.ps1             build images, load, apply everything
+├── README.md
+└── documentation.html     ← this file</div>
+    </section>
+
+    <section id="run">
+      <h2>Run it</h2>
+      <h3>Prerequisites</h3>
+      <ul>
+        <li>Docker Desktop (running)</li>
+        <li><code>kind</code> and <code>kubectl</code> on PATH</li>
+      </ul>
+      <h3>1 — Create the cluster</h3>
+      <div class="callout"><b>cgroup v1 hosts</b> (e.g. Docker Desktop on WSL2 with cgroup v1) must pin an
+      older node image — kind's default needs cgroup v2.</div>
+      <pre><button class="copy">Copy</button>kind create cluster --config k8s-task-app/k8s/kind-cluster.yaml --image kindest/node:v1.30.0</pre>
+      <h3>2 — Build &amp; deploy everything</h3>
+      <pre><button class="copy">Copy</button>./deploy.ps1</pre>
+      <p>Then open <a href="http://localhost:30080" target="_blank" rel="noreferrer">http://localhost:30080</a>.</p>
+      <h3>Configuration</h3>
+      <p>The optional "Login with GitHub" feature needs OAuth credentials. Copy the example and fill it in
+      (never commit the real <code>.env</code>):</p>
+      <pre><button class="copy">Copy</button>cp k8s-task-app/backend/.env.example k8s-task-app/backend/.env</pre>
+    </section>
+
+    <section id="verify">
+      <h2>Verify</h2>
+      <h3>Pods are healthy</h3>
+      <pre><button class="copy">Copy</button>kubectl --context kind-taskapp get pods</pre>
+      <h3>The backend holds a Kerberos ticket</h3>
+      <pre><button class="copy">Copy</button>kubectl --context kind-taskapp exec deploy/backend -c backend -- klist</pre>
+      <h3>Proof: Postgres authenticated the backend via GSSAPI</h3>
+      <pre><button class="copy">Copy</button>kubectl --context kind-taskapp exec deploy/postgres -c postgres -- \
+  psql -U app -d taskdb -c "SELECT a.usename, g.gss_authenticated, g.principal \
+  FROM pg_stat_gssapi g JOIN pg_stat_activity a ON a.pid=g.pid WHERE a.usename='backend';"</pre>
+      <div class="diagram"> usename | gss_authenticated |       principal
+---------+-------------------+-----------------------
+ backend | t                 | backend@TASKAPP.LOCAL</div>
+      <p><span class="pill ok">gss_authenticated = t</span> confirms the connection used Kerberos, as role
+      <code>backend</code>, with no password.</p>
+      <h3>Persistence</h3>
+      <p>Add a task, delete the backend pod (or the Postgres pod) and reload — the task remains, because it
+      lives in the database's PersistentVolumeClaim, not in the app.</p>
+    </section>
+
+    <section id="troubleshoot">
+      <h2>Troubleshooting</h2>
+      <table>
+        <thead><tr><th>Symptom</th><th>Cause / fix</th></tr></thead>
+        <tbody>
+          <tr><td>kind cluster fails at "Starting control-plane"</td><td>Host is cgroup v1; use <code>--image kindest/node:v1.30.0</code>.</td></tr>
+          <tr><td><code>Server krbtgt/DEFAULT.SVC.CLUSTER.LOCAL … not found</code></td><td>Hostname canonicalization; fixed by the <code>*.svc.cluster.local → TASKAPP.LOCAL</code> mapping and the FQDN service principal.</td></tr>
+          <tr><td>backend <code>npm install</code> fails compiling <code>libpq</code></td><td>node-gyp needs <code>python3</code> + build toolchain in the image.</td></tr>
+          <tr><td>nginx <code>host not found in upstream</code></td><td>Backend service must exist in the same cluster (one-cluster design).</td></tr>
+          <tr><td>Pods restart occasionally</td><td>Memory pressure on cgroup v1 kind; they self-recover.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="security">
+      <h2>Security notes</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3 style="margin-top:0">Kept out of git</h3>
+          <p>Real secrets are gitignored: <code>.env</code> files (GitHub OAuth secret) and
+          <code>*.keytab</code>. An <code>.env.example</code> documents the required variables with
+          placeholders.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">Demo-only credentials</h3>
+          <p>Manifests contain throwaway passwords (<code>admin123</code>, <code>app_password</code>) for
+          local use only. <span class="pill no">do not reuse</span> them anywhere real.</p>
+        </div>
+      </div>
+      <div class="callout warn"><b>Keytabs are provisioned at runtime</b> by init-containers, so no Kerberos
+      credentials are ever stored in the repository or baked into images.</div>
+    </section>
+
+    <footer>
+      Task Manager on Kubernetes · <a href="https://github.com/ankmay0/k8s" target="_blank" rel="noreferrer">github.com/ankmay0/k8s</a>
+      · Documentation generated for the project.
+    </footer>
+  </main>
+</div>
+
+<script>
+  // Copy buttons
+  document.querySelectorAll("pre .copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var code = btn.parentElement.innerText.replace(/^Copy\n?/, "");
+      navigator.clipboard.writeText(code).then(function () {
+        var old = btn.textContent; btn.textContent = "Copied";
+        setTimeout(function () { btn.textContent = old; }, 1200);
+      });
+    });
+  });
+  // Active section highlight
+  var links = Array.prototype.slice.call(document.querySelectorAll("#nav a"));
+  var map = {};
+  links.forEach(function (a) { var id = a.getAttribute("href").slice(1); map[id] = a; });
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting && map[e.target.id]) {
+        links.forEach(function (l) { l.classList.remove("active"); });
+        map[e.target.id].classList.add("active");
+      }
+    });
+  }, { rootMargin: "-20% 0px -70% 0px" });
+  document.querySelectorAll("section[id]").forEach(function (s) { if (map[s.id]) obs.observe(s); });
+</script>
+</body>
+</html>
