@@ -1,0 +1,44 @@
+services:
+
+  kerberos:
+    build:
+      context: ../kerberos
+
+    container_name: task-kerberos
+
+    hostname: kerberos
+
+    ports:
+      - "88:88"
+      - "749:749"
+
+    networks:
+      - task-network
+
+
+  backend:
+    build:
+      context: ./backend
+
+    container_name: task-backend
+
+    ports:
+      - "5000:5000"
+
+    depends_on:
+      - kerberos
+
+    environment:
+      KRB5_CONFIG: /etc/krb5.conf
+
+    volumes:
+      - ../kerberos/krb5.conf:/etc/krb5.conf:ro
+      - ../kerberos/backend.keytab:/etc/backend.keytab:ro
+
+    networks:
+      - task-network
+
+
+networks:
+  task-network:
+    driver: bridge

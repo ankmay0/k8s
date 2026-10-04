@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: kerberos
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: kerberos
+
+  template:
+    metadata:
+      labels:
+        app: kerberos
+
+    spec:
+      containers:
+        - name: kerberos
+          image: task-kerberos:latest
+
+          ports:
+            - containerPort: 88
+            - containerPort: 749
+
+          imagePullPolicy: Never

@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: backend
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: backend
+
+  template:
+    metadata:
+      labels:
+        app: backend
+
+    spec:
+      # Create the backend Kerberos principal and extract its keytab at startup
+      # by talking to the KDC with kadmin (admin/admin). Keytab lands in a shared
+      # in-pod volume; nothing secret is baked into the image or committed.
+      initContainers:
+        - name: krb-provision
+          image: task-kerberos:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for KDC (kadmind)..."
+              until kadmin -p admin/admin -w admin123 -q "get_principal admin/admin" >/dev/null 2>&1; do
+                sleep 2
+              done
+              echo "Creating principal backend@TASKAPP.LOCAL..."
+              kadmin -p admin/admin -w admin123 -q "addprinc -randkey backend@TASKAPP.LOCAL" || true
+              kadmin -p admin/admin -w admin123 -q "ktadd -k /krb/backend.keytab backend@TASKAPP.LOCAL"
+              echo "backend keytab written."
+          volumeMounts:
+            - name: krb5-config
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf
+              readOnly: true
+            - name: krb-keytab
+              mountPath: /krb
+
+      containers:
+        - name: backend
+          image: task-backend:latest
+          imagePullPolicy: Never
+
+          ports:
+            - containerPort: 5000
+
+          env:
+            - name: KRB5_CONFIG
+              value: /etc/krb5.conf
+            # Use the libpq/native driver and authenticate to Postgres over
+            # GSSAPI as role "backend" — no password anywhere.
+            - name: PGNATIVE
+              value: "1"
+            - name: PGHOST
+              value: postgres
+            - name: PGDATABASE
+              value: taskdb
+            - name: PGUSER
+              value: backend
+
+          volumeMounts:
+            - name: krb5-config
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf
+              readOnly: true
+            - name: krb-keytab
+              mountPath: /krb
+
+      volumes:
+        - name: krb5-config
+          configMap:
+            name: krb5-config
+        - name: krb-keytab
+          emptyDir: {}

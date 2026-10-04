@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: postgres
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: postgres
+
+  template:
+    metadata:
+      labels:
+        app: postgres
+
+    spec:
+      # Provision the postgres service principal + keytab from the KDC at startup.
+      # chmod so the postgres process (uid 999) can read the keytab.
+      initContainers:
+        - name: krb-provision
+          image: task-kerberos:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for KDC (kadmind)..."
+              until kadmin -p admin/admin -w admin123 -q "get_principal admin/admin" >/dev/null 2>&1; do
+                sleep 2
+              done
+              # Provision both the short-name and FQDN service principals so the
+              # keytab matches whatever libpq asks for (it uses the FQDN).
+              for SPN in postgres/postgres postgres/postgres.default.svc.cluster.local; do
+                echo "Creating principal $SPN@TASKAPP.LOCAL..."
+                kadmin -p admin/admin -w admin123 -q "addprinc -randkey $SPN@TASKAPP.LOCAL" || true
+                kadmin -p admin/admin -w admin123 -q "ktadd -k /krb/krb5.keytab $SPN@TASKAPP.LOCAL"
+              done
+              chmod 0644 /krb/krb5.keytab
+              echo "postgres keytab written."
+          volumeMounts:
+            - name: krb5-config
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf
+              readOnly: true
+            - name: krb-keytab
+              mountPath: /krb
+
+      containers:
+        - name: postgres
+          image: postgres:16
+          imagePullPolicy: IfNotPresent
+
+          # Use our Kerberos-aware pg_hba.conf and the provisioned service keytab.
+          args:
+            - postgres
+            - -c
+            - hba_file=/etc/pg/pg_hba.conf
+            - -c
+            - krb_server_keyfile=/krb/krb5.keytab
+
+          ports:
+            - containerPort: 5432
+
+          env:
+            - name: POSTGRES_DB
+              value: taskdb
+            - name: POSTGRES_USER
+              value: app
+            - name: POSTGRES_PASSWORD
+              value: app_password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: KRB5_CONFIG
+              value: /etc/krb5.conf
+
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            - name: pg-hba
+              mountPath: /etc/pg
+              readOnly: true
+            - name: krb5-config
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf
+              readOnly: true
+            - name: krb-keytab
+              mountPath: /krb
+
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-data
+        - name: init-sql
+          configMap:
+            name: postgres-init
+        - name: pg-hba
+          configMap:
+            name: postgres-hba
+        - name: krb5-config
+          configMap:
+            name: krb5-config
+        - name: krb-keytab
+          emptyDir: {}
