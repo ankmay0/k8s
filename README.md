@@ -43,6 +43,11 @@ kind create cluster --config k8s-task-app/k8s/kind-cluster.yaml --image kindest/
 # build + deploy everything
 ./deploy.ps1
 ```
+# 1. create the cluster (helm)
+kind create cluster --config k8s-task-app/k8s/kind-cluster.yaml --image kindest/node:v1.30.0
+
+# 2. build images, load them, and install the chart
+.\taskapp\deploy-helm.ps1
 
 Then open http://localhost:30080.
 
