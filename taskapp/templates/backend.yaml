@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      # Create the backend Kerberos principal and extract its keytab at startup.
+      initContainers:
+        - name: krb-provision
+          image: "{{ .Values.kerberos.image.repository }}:{{ .Values.kerberos.image.tag }}"
+          imagePullPolicy: {{ .Values.kerberos.image.pullPolicy }}
+          command: ["/bin/bash", "-c"]
+          env:
+            - name: KADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskapp-secrets
+                  key: kadmin-password
+          args:
+            - |
+              set -e
+              echo "Waiting for KDC (kadmind)..."
+              until kadmin -p {{ .Values.kerberos.adminPrincipal }} -w "$KADMIN_PASSWORD" -q "get_principal {{ .Values.kerberos.adminPrincipal }}" >/dev/null 2>&1; do
+                sleep 2
+              done
+              echo "Creating principal {{ .Values.backend.dbUser }}@{{ .Values.kerberos.realm }}..."
+              kadmin -p {{ .Values.kerberos.adminPrincipal }} -w "$KADMIN_PASSWORD" -q "addprinc -randkey {{ .Values.backend.dbUser }}@{{ .Values.kerberos.realm }}" || true
+              kadmin -p {{ .Values.kerberos.adminPrincipal }} -w "$KADMIN_PASSWORD" -q "ktadd -k /krb/backend.keytab {{ .Values.backend.dbUser }}@{{ .Values.kerberos.realm }}"
+              echo "backend keytab written."
+          volumeMounts:
+            - name: krb5-config
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf
+              readOnly: true
+            - name: krb-keytab
+              mountPath: /krb
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.backend.port }}
+          env:
+            - name: KRB5_CONFIG
+              value: /etc/krb5.conf
+            - name: PGNATIVE
+              value: "1"
+            - name: PGHOST
+              value: postgres
+            - name: PGDATABASE
+              value: {{ .Values.postgres.db | quote }}
+            - name: PGUSER
+              value: {{ .Values.backend.dbUser | quote }}
+          volumeMounts:
+            - name: krb5-config
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf
+              readOnly: true
+            - name: krb-keytab
+              mountPath: /krb
+      volumes:
+        - name: krb5-config
+          configMap:
+            name: krb5-config
+        - name: krb-keytab
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # nginx.conf in the frontend image proxies to this exact name
+  name: backend-service
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+    - protocol: TCP
+      port: {{ .Values.backend.port }}
+      targetPort: {{ .Values.backend.port }}

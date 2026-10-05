@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.postgres.storage }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: {{ .Values.postgres.replicas }}
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      # Provision the postgres service principal + keytab from the KDC at startup.
+      initContainers:
+        - name: krb-provision
+          image: "{{ .Values.kerberos.image.repository }}:{{ .Values.kerberos.image.tag }}"
+          imagePullPolicy: {{ .Values.kerberos.image.pullPolicy }}
+          command: ["/bin/bash", "-c"]
+          env:
+            - name: KADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskapp-secrets
+                  key: kadmin-password
+          args:
+            - |
+              set -e
+              echo "Waiting for KDC (kadmind)..."
+              until kadmin -p {{ .Values.kerberos.adminPrincipal }} -w "$KADMIN_PASSWORD" -q "get_principal {{ .Values.kerberos.adminPrincipal }}" >/dev/null 2>&1; do
+                sleep 2
+              done
+              for SPN in postgres/postgres postgres/postgres.{{ .Release.Namespace }}.svc.cluster.local; do
+                echo "Creating principal $SPN@{{ .Values.kerberos.realm }}..."
+                kadmin -p {{ .Values.kerberos.adminPrincipal }} -w "$KADMIN_PASSWORD" -q "addprinc -randkey $SPN@{{ .Values.kerberos.realm }}" || true
+                kadmin -p {{ .Values.kerberos.adminPrincipal }} -w "$KADMIN_PASSWORD" -q "ktadd -k /krb/krb5.keytab $SPN@{{ .Values.kerberos.realm }}"
+              done
+              chmod 0644 /krb/krb5.keytab
+              echo "postgres keytab written."
+          volumeMounts:
+            - name: krb5-config
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf
+              readOnly: true
+            - name: krb-keytab
+              mountPath: /krb
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          args:
+            - postgres
+            - -c
+            - hba_file=/etc/pg/pg_hba.conf
+            - -c
+            - krb_server_keyfile=/krb/krb5.keytab
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.db | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskapp-secrets
+                  key: postgres-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: KRB5_CONFIG
+              value: /etc/krb5.conf
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            - name: pg-hba
+              mountPath: /etc/pg
+              readOnly: true
+            - name: krb5-config
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf
+              readOnly: true
+            - name: krb-keytab
+              mountPath: /krb
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-data
+        - name: init-sql
+          configMap:
+            name: postgres-init
+        - name: pg-hba
+          configMap:
+            name: postgres-hba
+        - name: krb5-config
+          configMap:
+            name: krb5-config
+        - name: krb-keytab
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432

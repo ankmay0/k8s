@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kerberos
+spec:
+  replicas: {{ .Values.kerberos.replicas }}
+  selector:
+    matchLabels:
+      app: kerberos
+  template:
+    metadata:
+      labels:
+        app: kerberos
+    spec:
+      containers:
+        - name: kerberos
+          image: "{{ .Values.kerberos.image.repository }}:{{ .Values.kerberos.image.tag }}"
+          imagePullPolicy: {{ .Values.kerberos.image.pullPolicy }}
+          ports:
+            - containerPort: 88
+            - containerPort: 749
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kerberos
+spec:
+  type: ClusterIP
+  selector:
+    app: kerberos
+  ports:
+    - name: kdc
+      protocol: TCP
+      port: 88
+      targetPort: 88
+    - name: kadmin
+      protocol: TCP
+      port: 749
+      targetPort: 749
