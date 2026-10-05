@@ -18,7 +18,8 @@ const [kerberosStatus, setKerberosStatus] = useState(false);
 
 const checkKerberos = async () => {
   try {
-    const response = await fetch("http://localhost:5000/auth/kerberos");
+    const response = await fetch(`${API_URL}/auth/kerberos`);
+    // const response = await fetch("http://localhost:5000/auth/kerberos");
 
     if (!response.ok) {
       setKerberosStatus(false);

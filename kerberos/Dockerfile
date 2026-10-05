@@ -10,7 +10,8 @@ COPY krb5.conf /etc/krb5.conf
 COPY kadm5.acl /etc/krb5kdc/kadm5.acl
 COPY start.sh /start.sh
 
-RUN chmod +x /start.sh
+RUN sed -i 's/\r$//' /start.sh /etc/krb5.conf /etc/krb5kdc/kadm5.acl && \
+    chmod +x /start.sh
 
 EXPOSE 88
 EXPOSE 749
