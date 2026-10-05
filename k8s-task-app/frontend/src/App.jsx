@@ -13,12 +13,12 @@ const [kerberosStatus, setKerberosStatus] = useState(false);
   const API_URL = "/api";
 
   const loginWithGitHub = () => {
-  window.location.href = "http://localhost:5000/auth/github";
+  window.location.href = "/auth/github";
 };
 
 const checkKerberos = async () => {
   try {
-    const response = await fetch("http://localhost:5000/auth/kerberos");
+    const response = await fetch("/auth/kerberos");
 
     if (!response.ok) {
       setKerberosStatus(false);
@@ -36,7 +36,7 @@ const checkKerberos = async () => {
 
 const fetchRepositories = async (currentSessionId) => {
   try {
-    const response = await fetch("http://localhost:5000/github/repos", {
+    const response = await fetch("/github/repos", {
       headers: {
         "x-session-id": currentSessionId
       }
@@ -92,7 +92,7 @@ useEffect(() => {
 
   const getGitHubUser = async () => {
     try {
-      const response = await fetch("http://localhost:5000/auth/me", {
+      const response = await fetch("/auth/me", {
         headers: {
           "x-session-id": sessionId
         }

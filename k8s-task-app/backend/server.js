@@ -192,7 +192,7 @@ sessions.set(sessionId, {
 });
 
 res.redirect(
-  `http://localhost:5173/?session_id=${encodeURIComponent(sessionId)}`
+  `/?session_id=${encodeURIComponent(sessionId)}`
 );
   } catch (error) {
     console.error("GitHub OAuth error:", error);
