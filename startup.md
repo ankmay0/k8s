@@ -122,12 +122,25 @@ Steps 3–6 are wrapped in the repo's deploy script, so after Step 2 you can jus
 ## Quick reference
 
 ### After a reboot or closing Docker Desktop
-The cluster lives inside Docker — just start Docker and the pods auto-recover.
+The cluster lives inside Docker — start Docker and the pods come back.
 ```powershell
 Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
 # wait ~30-60s, then:
 kubectl --context kind-taskapp get pods
 ```
+
+**If the app returns 502 and the backend log shows
+`No Kerberos credentials available`:** a full node restart resets the KDC
+(it has no persistent volume), so the keytabs need re-provisioning in order.
+Restart Postgres, then the backend:
+```powershell
+kubectl --context kind-taskapp rollout restart deploy/postgres
+kubectl --context kind-taskapp rollout status  deploy/postgres --timeout=150s
+kubectl --context kind-taskapp rollout restart deploy/backend
+kubectl --context kind-taskapp rollout status  deploy/backend  --timeout=150s
+```
+(To avoid this entirely, give the KDC a PersistentVolumeClaim so its principal
+database survives restarts.)
 
 ### Health checks (any time)
 ```powershell
