@@ -1,0 +1,42 @@
+# All settings that used to be hardcoded in the YAML files live here.
+
+# Images are built locally and loaded into kind, so pullPolicy is Never.
+kerberos:
+  image:
+    repository: task-kerberos
+    tag: latest
+    pullPolicy: Never
+  replicas: 1
+  realm: TASKAPP.LOCAL
+  # Must match the admin password baked into kerberos/start.sh
+  adminPrincipal: admin/admin
+  adminPassword: admin123
+
+postgres:
+  image:
+    repository: postgres
+    tag: "16"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  db: taskdb
+  user: app
+  password: app_password
+  storage: 1Gi
+
+backend:
+  image:
+    repository: task-backend
+    tag: latest
+    pullPolicy: Never
+  replicas: 1
+  port: 5000
+  dbUser: backend
+
+frontend:
+  image:
+    repository: task-frontend
+    tag: latest
+    pullPolicy: Never
+  replicas: 1
+  port: 80
+  nodePort: 30080

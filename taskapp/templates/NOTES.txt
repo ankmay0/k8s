@@ -1,0 +1,4 @@
+Task Manager installed in namespace "{{ .Release.Namespace }}".
+
+Check pods:   kubectl get pods
+Open the app: http://localhost:{{ .Values.frontend.nodePort }}
