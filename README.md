@@ -40,7 +40,8 @@ Prereqs: Docker Desktop, `kind`, `kubectl`.
 # create the cluster (cgroup v1 hosts need the older node image)
 kind create cluster --config k8s-task-app/k8s/kind-cluster.yaml --image kindest/node:v1.30.0
 
-# build + deploy everything
+# Put your local Kerberos admin password in .env, then deploy.
+# KRB_ADMIN_PASSWORD=your-strong-password
 ./deploy.ps1
 ```
 # 1. create the cluster (helm)
@@ -48,6 +49,13 @@ kind create cluster --config k8s-task-app/k8s/kind-cluster.yaml --image kindest/
 
 # 2. build images, load them, and install the chart
 .\taskapp\deploy-helm.ps1
+
+On macOS or Linux, create the cluster with `kind`, put `KRB_ADMIN_PASSWORD` in
+`.env`, and run `chmod +x deploy.sh && ./deploy.sh`.
+
+For GitHub login, copy `k8s-task-app/backend/.env.example` to
+`k8s-task-app/backend/.env`, fill in the GitHub OAuth values, and rerun the
+deployment script.
 
 Then open http://localhost:30080.
 

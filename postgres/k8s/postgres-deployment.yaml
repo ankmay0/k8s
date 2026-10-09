@@ -28,15 +28,15 @@ spec:
             - |
               set -e
               echo "Waiting for KDC (kadmind)..."
-              until kadmin -p admin/admin -w admin123 -q "get_principal admin/admin" >/dev/null 2>&1; do
+              until kadmin -p admin/admin -w "$KRB_ADMIN_PASSWORD" -q "get_principal admin/admin" >/dev/null 2>&1; do
                 sleep 2
               done
               # Provision both the short-name and FQDN service principals so the
               # keytab matches whatever libpq asks for (it uses the FQDN).
               for SPN in postgres/postgres postgres/postgres.default.svc.cluster.local; do
                 echo "Creating principal $SPN@TASKAPP.LOCAL..."
-                kadmin -p admin/admin -w admin123 -q "addprinc -randkey $SPN@TASKAPP.LOCAL" || true
-                kadmin -p admin/admin -w admin123 -q "ktadd -k /krb/krb5.keytab $SPN@TASKAPP.LOCAL"
+                kadmin -p admin/admin -w "$KRB_ADMIN_PASSWORD" -q "addprinc -randkey $SPN@TASKAPP.LOCAL" || true
+                kadmin -p admin/admin -w "$KRB_ADMIN_PASSWORD" -q "ktadd -k /krb/krb5.keytab $SPN@TASKAPP.LOCAL"
               done
               chmod 0644 /krb/krb5.keytab
               echo "postgres keytab written."
@@ -47,6 +47,12 @@ spec:
               readOnly: true
             - name: krb-keytab
               mountPath: /krb
+          env:
+            - name: KRB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kerberos-admin
+                  key: password
 
       containers:
         - name: postgres

@@ -252,7 +252,8 @@
       <pre><button class="copy">Copy</button>kind create cluster --config k8s-task-app/k8s/kind-cluster.yaml --image kindest/node:v1.30.0</pre>
       <h3>2 — Build &amp; deploy everything</h3>
       <pre><button class="copy">Copy</button>./deploy.ps1</pre>
-      <p>Then open <a href="http://localhost:30080" target="_blank" rel="noreferrer">http://localhost:30080</a>.</p>
+      <p>Set <code>KRB_ADMIN_PASSWORD</code> in the root <code>.env</code> file before running the deploy script, then open
+      <a href="http://localhost:30080" target="_blank" rel="noreferrer">http://localhost:30080</a>.</p>
       <h3>Configuration</h3>
       <p>The optional "Login with GitHub" feature needs OAuth credentials. Copy the example and fill it in
       (never commit the real <code>.env</code>):</p>
@@ -304,8 +305,9 @@
         </div>
         <div class="card">
           <h3 style="margin-top:0">Demo-only credentials</h3>
-          <p>Manifests contain throwaway passwords (<code>admin123</code>, <code>app_password</code>) for
-          local use only. <span class="pill no">do not reuse</span> them anywhere real.</p>
+          <p>The Kerberos admin password is supplied through <code>KRB_ADMIN_PASSWORD</code> and stored in a
+          Kubernetes Secret. The demo PostgreSQL password remains local-only. <span class="pill no">do not reuse</span>
+          it anywhere real.</p>
         </div>
       </div>
       <div class="callout warn"><b>Keytabs are provisioned at runtime</b> by init-containers, so no Kerberos

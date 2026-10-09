@@ -26,3 +26,10 @@ spec:
             - containerPort: 749
 
           imagePullPolicy: Never
+
+          env:
+            - name: KRB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kerberos-admin
+                  key: password

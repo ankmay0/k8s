@@ -12,6 +12,9 @@ services:
       - "88:88"
       - "749:749"
 
+    environment:
+      KRB_ADMIN_PASSWORD: ${KRB_ADMIN_PASSWORD:?Set KRB_ADMIN_PASSWORD in your environment}
+
     networks:
       - task-network
 

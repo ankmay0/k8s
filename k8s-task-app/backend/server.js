@@ -5,6 +5,7 @@ const cors = require("cors");
 const crypto = require("crypto");
 const { execFile } = require("child_process");
 const pg = require("pg");
+const { runAnalysis, runAnalysisOnSources } = require("./repositoryAnalyzer");
 
 const app = express();
 const PORT = 5000;
@@ -49,6 +50,16 @@ async function waitForDatabase() {
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+app.post("/analyze", async (req, res) => {
+  try {
+    const report = await runAnalysis(process.env.ANALYZER_ROOT || __dirname, req.body?.enrich !== false);
+    res.json(report);
+  } catch (error) {
+    console.error("Repository analysis error:", error);
+    res.status(500).json({ message: "Repository analysis failed", error: error.message });
+  }
+});
 
 // Health check
 app.get("/", (req, res) => {
@@ -225,6 +236,18 @@ app.get("/auth/me", (req, res) => {
   });
 });
 
+app.post("/auth/logout", (req, res) => {
+  const sessionId = req.headers["x-session-id"];
+
+  if (sessionId) {
+    sessions.delete(sessionId);
+  }
+
+  res.json({
+    message: "Logged out"
+  });
+});
+
 app.get("/github/repos", async (req, res) => {
   const sessionId = req.headers["x-session-id"];
 
@@ -269,6 +292,7 @@ app.get("/github/repos", async (req, res) => {
       full_name: repo.full_name,
       private: repo.private,
       html_url: repo.html_url
+      ,default_branch: repo.default_branch
     }));
 
     res.json(result);
@@ -278,6 +302,53 @@ app.get("/github/repos", async (req, res) => {
     res.status(500).json({
       message: "Failed to fetch GitHub repositories"
     });
+  }
+});
+
+app.post("/analyze/github", async (req, res) => {
+  const sessionId = req.headers["x-session-id"];
+  const repository = String(req.body?.repository || "").trim();
+  const session = sessionId && sessions.get(sessionId);
+
+  if (!session) return res.status(401).json({ message: "A valid GitHub session is required" });
+  if (!/^[^/\s]+\/[^/\s]+$/.test(repository)) {
+    return res.status(400).json({ message: "repository must be in owner/name format" });
+  }
+
+  try {
+    const githubHeaders = {
+      Authorization: `Bearer ${session.accessToken}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
+    };
+    const repoResponse = await fetch(`https://api.github.com/repos/${repository}`, { headers: githubHeaders });
+    const repoData = await repoResponse.json();
+    if (!repoResponse.ok) return res.status(repoResponse.status).json({ message: "Unable to access repository", error: repoData.message });
+
+    const treeResponse = await fetch(
+      `https://api.github.com/repos/${repository}/git/trees/${encodeURIComponent(repoData.default_branch)}?recursive=1`,
+      { headers: githubHeaders }
+    );
+    const treeData = await treeResponse.json();
+    if (!treeResponse.ok) return res.status(treeResponse.status).json({ message: "Unable to read repository tree", error: treeData.message });
+
+    const supported = /\.(js|jsx|ts|tsx|json|yaml|yml|md)$/i;
+    const blobs = (treeData.tree || []).filter((item) => item.type === "blob" && supported.test(item.path) && (item.size || 0) <= 250000).slice(0, 120);
+    const sourceFiles = (await Promise.all(blobs.map(async (blob) => {
+      const blobResponse = await fetch(blob.url, { headers: githubHeaders });
+      if (!blobResponse.ok) return null;
+      const blobData = await blobResponse.json();
+      return blobData.encoding === "base64" ? { path: blob.path, source: Buffer.from(blobData.content, "base64").toString("utf8") } : null;
+    }))).filter(Boolean);
+
+    const report = await runAnalysisOnSources(sourceFiles, `GitHub repository ${repository}`, req.body?.enrich !== false);
+    report.repository = repository;
+    report.default_branch = repoData.default_branch;
+    report.github_url = repoData.html_url;
+    res.json(report);
+  } catch (error) {
+    console.error("GitHub repository analysis error:", error);
+    res.status(500).json({ message: "GitHub repository analysis failed", error: error.message });
   }
 });
 

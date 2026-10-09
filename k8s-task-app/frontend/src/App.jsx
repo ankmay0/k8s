@@ -9,11 +9,34 @@ const [sessionId, setSessionId] = useState(
 
 const [repositories, setRepositories] = useState([]);
 const [kerberosStatus, setKerberosStatus] = useState(false);
+const [analysis, setAnalysis] = useState(null);
+const [analysisLoading, setAnalysisLoading] = useState(false);
+const [analysisError, setAnalysisError] = useState("");
 
   const API_URL = "/api";
 
   const loginWithGitHub = () => {
   window.location.href = "/auth/github";
+};
+
+const logout = async () => {
+  try {
+    if (sessionId) {
+      await fetch("/auth/logout", {
+        method: "POST",
+        headers: {
+          "x-session-id": sessionId
+        }
+      });
+    }
+  } catch (error) {
+    console.error("Logout failed:", error);
+  } finally {
+    localStorage.removeItem("github_session_id");
+    setSessionId(null);
+    setGithubUser("");
+    setRepositories([]);
+  }
 };
 
 const checkKerberos = async () => {
@@ -154,6 +177,44 @@ useEffect(() => {
     }
   };
 
+  const analyzeRepository = async () => {
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    try {
+      const response = await fetch(`${API_URL}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enrich: true })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Analysis failed");
+      setAnalysis(data);
+    } catch (error) {
+      setAnalysisError(error.message);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const analyzeGitHubRepository = async (repo) => {
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    try {
+      const response = await fetch(`${API_URL}/analyze/github`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-session-id": sessionId },
+        body: JSON.stringify({ repository: repo.full_name, enrich: true })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "GitHub repository analysis failed");
+      setAnalysis(data);
+    } catch (error) {
+      setAnalysisError(error.message);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.card}>
@@ -185,6 +246,10 @@ useEffect(() => {
           </p>
         </div>
 
+        <button onClick={() => analyzeGitHubRepository(repo)} disabled={analysisLoading} style={styles.repoAnalyzeButton}>
+          Analyze
+        </button>
+
         <a
           href={repo.html_url}
           target="_blank"
@@ -197,9 +262,15 @@ useEffect(() => {
     ))}
   </div>
 )}
-        <button onClick={loginWithGitHub} style={styles.githubButton}>
-  Login with GitHub
-</button>
+        {githubUser ? (
+  <button onClick={logout} style={styles.logoutButton}>
+    Logout
+  </button>
+) : (
+  <button onClick={loginWithGitHub} style={styles.githubButton}>
+    Login with GitHub
+  </button>
+)}
 
         <div style={styles.inputContainer}>
           <input
@@ -234,6 +305,36 @@ useEffect(() => {
             </div>
           ))}
         </div>
+
+        <section style={styles.analysis}>
+          <div style={styles.analysisHeader}>
+            <div>
+              <h2>API usage analysis</h2>
+              <p style={styles.muted}>Analyze the Task Manager backend or a repository accessed through GitHub.</p>
+            </div>
+            <button onClick={analyzeRepository} disabled={analysisLoading} style={styles.analyzeButton}>
+              {analysisLoading ? "Scanning..." : "Analyze repository"}
+            </button>
+          </div>
+          {analysisError && <p style={styles.error}>{analysisError}</p>}
+          {analysis && (
+            <>
+              <div style={styles.stats}>
+                <span><strong>{analysis.api_usage.endpoint_count}</strong> endpoints</span>
+                <span><strong>{analysis.api_usage.external_hosts.length}</strong> external hosts</span>
+                <span><strong>{analysis.api_usage.client_libraries.length}</strong> client libraries</span>
+              </div>
+              <p style={styles.summary}>{analysis.claude_summary}</p>
+              <ul style={styles.compactList}>
+                {analysis.api_usage.endpoints.map((endpoint) => (
+                  <li key={`${endpoint.method}-${endpoint.path}-${endpoint.file}`}>
+                    <code>{endpoint.method}</code> {endpoint.path} <small>{endpoint.file}</small>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );
@@ -259,6 +360,15 @@ repoLink: {
   textDecoration: "none",
   fontSize: "14px"
 },
+repoAnalyzeButton: {
+  padding: "7px 10px",
+  border: "none",
+  borderRadius: "5px",
+  backgroundColor: "#2563eb",
+  color: "white",
+  cursor: "pointer",
+  fontSize: "13px"
+},
   githubUser: {
   marginBottom: "15px",
   color: "#555",
@@ -272,6 +382,17 @@ repoLink: {
   borderRadius: "6px",
   backgroundColor: "#24292f",
   color: "white",
+  cursor: "pointer",
+  fontSize: "15px"
+},
+  logoutButton: {
+  width: "100%",
+  padding: "12px",
+  marginBottom: "20px",
+  border: "1px solid #d0d7de",
+  borderRadius: "6px",
+  backgroundColor: "white",
+  color: "#24292f",
   cursor: "pointer",
   fontSize: "15px"
 },
@@ -328,6 +449,15 @@ repoLink: {
     border: "1px solid #eee",
     borderRadius: "6px"
   },
+
+  analysis: { marginTop: "28px", paddingTop: "22px", borderTop: "1px solid #eee" },
+  analysisHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" },
+  muted: { color: "#667085", fontSize: "13px", marginTop: "5px", lineHeight: 1.4 },
+  analyzeButton: { padding: "9px 12px", border: "none", borderRadius: "6px", backgroundColor: "#111827", color: "white", cursor: "pointer", whiteSpace: "nowrap" },
+  error: { color: "#b42318", fontSize: "13px", marginTop: "12px" },
+  stats: { display: "flex", gap: "14px", margin: "16px 0", fontSize: "13px", color: "#475467" },
+  summary: { whiteSpace: "pre-wrap", background: "#f8fafc", borderRadius: "6px", padding: "12px", fontSize: "13px", lineHeight: 1.5 },
+  compactList: { marginTop: "12px", paddingLeft: "18px", fontSize: "13px", lineHeight: 1.8 },
 
   deleteButton: {
     padding: "6px 10px",

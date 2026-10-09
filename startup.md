@@ -34,6 +34,7 @@ Run these from the **repository root** (the `k8s` folder) in PowerShell.
 git clone https://github.com/ankmay0/k8s.git
 cd k8s
 $kind = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Kubernetes.kind_Microsoft.Winget.Source_8wekyb3d8bbwe\kind.exe"
+notepad .env    # set KRB_ADMIN_PASSWORD=your-strong-password
 ```
 
 ### Step 1 — Make sure Docker is running
@@ -77,6 +78,10 @@ kubectl create configmap postgres-init --from-file=init.sql=postgres\init.sql   
 kubectl create configmap postgres-hba  --from-file=pg_hba.conf=postgres\pg_hba.conf   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+The deploy script reads `KRB_ADMIN_PASSWORD` from the local `.env` file and
+creates the `kerberos-admin` Kubernetes Secret. Do not commit the value or put
+it in a manifest.
+
 ### Step 6 — Apply the manifests (Kerberos first, then DB, then the app)
 ```powershell
 kubectl apply -f kerberos\k8s\
@@ -115,6 +120,19 @@ Expected — proves the backend authenticated via Kerberos (no password):
 Steps 3–6 are wrapped in the repo's deploy script, so after Step 2 you can just run:
 ```powershell
 .\deploy.ps1
+```
+
+### macOS
+Install Docker Desktop, `kind`, and `kubectl` (Homebrew is convenient):
+```bash
+brew install kind kubectl
+```
+
+Start Docker Desktop, set `KRB_ADMIN_PASSWORD` in the root `.env`, then run:
+```bash
+chmod +x deploy.sh
+kind create cluster --config k8s-task-app/k8s/kind-cluster.yaml --image kindest/node:v1.30.0
+./deploy.sh
 ```
 
 ---
