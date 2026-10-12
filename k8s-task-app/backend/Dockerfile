@@ -1,20 +1,15 @@
-FROM node:22-bookworm-slim
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# krb5-user: kinit/klist for the Kerberos ticket.
-# build-essential + libpq-dev + libkrb5-dev: needed to compile pg-native
-# (the libpq-backed driver), which is what lets Node authenticate to Postgres
-# with a Kerberos ticket (pure-JS pg cannot do GSSAPI).
 RUN apt-get update && \
-    apt-get install -y krb5-user build-essential libpq-dev libkrb5-dev python3 pkg-config && \
+    apt-get install -y --no-install-recommends krb5-user libpq-dev libgssapi-krb5-2 libkrb5-dev build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN npm install
-
-COPY . .
+COPY app ./app
 
 EXPOSE 5000
 

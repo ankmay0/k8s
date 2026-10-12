@@ -45,7 +45,7 @@ Start-Process "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
 ```
 
 ### Step 2 — Create the cluster
-The NodePort mapping in `kind-cluster.yaml` exposes the app on `localhost:30080`.
+The NodePort mapping in `kind-cluster.yaml` exposes the app on `localhost:30080`. The API backend is Python/FastAPI and listens on port `5000` inside the cluster.
 cgroup v1 hosts (Docker Desktop on WSL2 with cgroup v1) **must** use the older node image.
 ```powershell
 & $kind create cluster --config "k8s-task-app\k8s\kind-cluster.yaml" --image kindest/node:v1.30.0
